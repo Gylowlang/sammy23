@@ -151,7 +151,7 @@
   document.ondrop = () => false;
     // Replace body content
 // Inject styles
-injectCSS('https://gylowlang.github.io/sammy23/gota-script/styles.css');
+injectCSS('https://gylowlang.github.io/sammy23/styles.css');
 // injectCSS('http://localhost:5500/gota.css'); // Temporarily disable gota.css injection
 
 
@@ -160,13 +160,13 @@ injectCSS('https://gylowlang.github.io/sammy23/gota-script/styles.css');
    document.getElementsByTagName('body')[0].innerHTML = `<div id="dual-enhances-wrapper">${newHTML}</div>`;
 
    // Inject the main game logic script first
-   replaceScript("https://gylowlang.github.io/sammy23/gota-script/dual-enhances.js")
+   replaceScript("https://gylowlang.github.io/sammy23/dual-enhances.js")
    // Then inject the UI script
  }
 
 
  window.addEventListener('DOMContentLoaded', () => {
-     test("https://gylowlang.github.io/sammy23/gota-script/index.html")
+     test("https://gylowlang.github.io/sammy23/index.html")
 
  });
 
