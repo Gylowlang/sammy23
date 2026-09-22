@@ -1,175 +1,610 @@
 // ==UserScript==
 // @name         Dual - Testing
 // @namespace    http://tampermonkey.net/
-// @version      1.0.0
-// @description
+// @version      1.1.0
+// @description  Loads the Dual Enhances interface and game script from GitHub Pages.
 // @match        https://gota.io/web/
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=gota.io
-// @grant        GM_webRequest
+// @grant        GM_xmlhttpRequest
 // @grant        GM_log
-// @connect      localhost       // Or the domain where your files are hosted
-// @connect      127.0.0.1     // Or the domain where your files are hosted
+// @connect      gylowlang.github.io
 // @run-at       document-start
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
-    // --- Block original Gota.io CSS ---
-    const cssBlockPattern = '*://gota.io/web/style.css*'; // Match the base URL and ignore query params like version
+    // =========================================================
+    // SETTINGS
+    // =========================================================
+
+    const REPLACEMENT_BASE_URL =
+        'https://gylowlang.github.io/sammy23/';
+
+    const INDEX_URL =
+        REPLACEMENT_BASE_URL + 'index.html';
+
+    const STYLE_URL =
+        REPLACEMENT_BASE_URL + 'style.css';
+
+    const GOTA_CSS_URL =
+        REPLACEMENT_BASE_URL + 'gota.css';
+
+    const GAME_SCRIPT_URL =
+        REPLACEMENT_BASE_URL + 'dual-enhances.js';
+
+    const ORIGINAL_SCRIPT_NAME =
+        'gota.js';
+
+    const ORIGINAL_CSS_URL =
+        '*://gota.io/web/style.css*';
+
+
+    // =========================================================
+    // LOGGING
+    // =========================================================
+
+    function log(message, ...args) {
+        console.log('[DualEnhances]', message, ...args);
+    }
+
+    function error(message, ...args) {
+        console.error('[DualEnhances]', message, ...args);
+    }
+
+
+    // =========================================================
+    // PREPARE WINDOW
+    // =========================================================
+
     try {
-        GM_webRequest(
-            { url: cssBlockPattern, type: 'stylesheet' }, // Filter for stylesheets matching the pattern
-            function(details) {
-                console.log(`[DualEnhances] Blocking original Gota.io CSS: ${details.url}`);
-                return { cancel: true }; // Block the request
-            }
-        );
-        console.log(`[DualEnhances] WebRequest rule added to block: ${cssBlockPattern}`);
+        Object.defineProperty(window, 'build', {
+            configurable: true,
+            writable: true,
+            value: undefined
+        });
+
+        log('Window build variable prepared.');
     } catch (e) {
-        console.error("[DualEnhances] Failed to set up GM_webRequest for CSS blocking:", e);
-        alert("Error: Failed to set up CSS blocking. The userscript might not work correctly. Check console for details.");
+        error('Could not prepare window.build:', e);
     }
-    // --- End CSS Blocking ---
-
- Object.defineProperty(window, 'build', { configurable: true, writable: true, value: undefined });
-
-    const REPLACEMENT_BASE_URL = 'https://gylowlang.github.io/sammy23/'; // <-- Ensure trailing slash
-    const ORIGINAL_SCRIPT_URL = 'gota.js?v=3.6.5';
 
 
+    // =========================================================
+    // TEMPORARY VERSION VARIABLE
+    // =========================================================
 
-    /** Injects a temporary script defining the 'version' variable. */
     function injectTemporaryVersion() {
-        // Check if it already exists to prevent multiple injections
-        if (document.getElementById('temp-version-script')) return;
-        try {
-            const versionScript = document.createElement('script');
-            versionScript.id = 'temp-version-script';
-            versionScript.textContent = 'var version = "3.6.5";'; // Match original script version if needed by replacement
-            // Append as early as possible, but check for head/documentElement existence
-            (document.head || document.documentElement).appendChild(versionScript);
-            console.log("Temporary version script injected.");
-        } catch (e) {
-            // Log error but don't necessarily stop the script
-            console.error("Error injecting temporary version script:", e);
-        }
-    }
 
-    /** Replaces the original script with one loaded from the provided URL. */
-    function replaceScript(scriptUrl) {
-        if (!scriptUrl) {
-            console.error("replaceScript called without a valid scriptUrl.");
-            // Optionally inform the user more visibly
-            alert("Error: Cannot load game script (invalid URL provided). Please contact support.");
+        if (document.getElementById('temp-version-script')) {
             return;
         }
-        // Clean up potential existing 'build' variable from previous runs or original script
-        if (window.build) {
-            try { delete window.build; } catch (e) { console.warn("Could not delete existing build variable:", e); }
+
+        try {
+
+            const versionScript =
+                document.createElement('script');
+
+            versionScript.id =
+                'temp-version-script';
+
+            versionScript.textContent =
+                'var version = "3.6.5";';
+
+            (
+                document.head ||
+                document.documentElement
+            ).appendChild(versionScript);
+
+            log('Temporary version variable injected.');
+
+        } catch (e) {
+
+            error(
+                'Failed to inject temporary version:',
+                e
+            );
         }
-
-
-        console.log(`Attempting to load replacement script from: ${scriptUrl}`);
-        const script = document.createElement('script');
-        script.src = scriptUrl; // This should be the bootstrapper URL fetched from backend
-
-        const cleanup = () => {
-             // Only cleanup version script now, as token/decoder are not passed via window
-             const tempVersionScript = document.getElementById('temp-version-script');
-             if (tempVersionScript) {
-                 try {
-                    tempVersionScript.remove();
-                    console.log("Temporary version script removed.");
-                 } catch(e) { console.error("Error removing temp version script:", e); }
-             }
-        };
-
-        script.onload = () => {
-            console.log('Replacement script loaded successfully.');
-            cleanup();
-        };
-        script.onerror = (error) => {
-            console.error('Failed to load replacement script from:', scriptUrl, 'Error:', error);
-            cleanup();
-            alert('Error: Failed to load the necessary game script. Please check the script URL or contact support.');
-        };
-        // Append to head or body to execute
-        (document.head || document.documentElement).appendChild(script);
     }
 
-    /** Sets up a MutationObserver to remove the original script if added. */
-    function setupObserver() {
-         const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                mutation.addedNodes.forEach((node) => {
-                    // Check if the added node is a SCRIPT tag
-                    if (node && node.tagName === 'SCRIPT') {
-                        // Check if node.src exists AND is a string before calling .includes()
-                        if (node.src && typeof node.src === 'string' && node.src.includes(ORIGINAL_SCRIPT_URL)) {
-                            console.warn('MutationObserver: Detected and removing original script:', node.src);
+
+    // =========================================================
+    // REMOVE ORIGINAL GOTA.JS
+    // =========================================================
+
+    function setupScriptObserver() {
+
+        const observer =
+            new MutationObserver((mutations) => {
+
+                for (const mutation of mutations) {
+
+                    for (const node of mutation.addedNodes) {
+
+                        if (!node || node.nodeType !== 1) {
+                            continue;
+                        }
+
+                        if (
+                            node.tagName === 'SCRIPT' &&
+                            node.src &&
+                            node.src.includes(ORIGINAL_SCRIPT_NAME)
+                        ) {
+
+                            log(
+                                'Removing original Gota script:',
+                                node.src
+                            );
+
                             try {
-                                node.remove(); // Remove the script node
-                            } catch(e) { console.error("Error removing script via observer:", e); }
+                                node.remove();
+                            } catch (e) {
+                                error(
+                                    'Could not remove original script:',
+                                    e
+                                );
+                            }
                         }
                     }
-                });
+                }
             });
-        });
-        // Observe the entire document for node additions/removals in the subtree
+
+
         try {
-            observer.observe(document.documentElement, {
-                 childList: true,
-                 subtree: true
-            });
-            console.log("MutationObserver setup complete (at document-start).");
-        } catch(e) {
-            console.error("Failed to setup MutationObserver:", e);
+
+            observer.observe(
+                document.documentElement,
+                {
+                    childList: true,
+                    subtree: true
+                }
+            );
+
+            log('Original script observer started.');
+
+        } catch (e) {
+
+            error(
+                'Failed to start script observer:',
+                e
+            );
         }
     }
 
 
-    function injectCSS(url) {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = url;
-    document.head.appendChild(link);
-}
+    // =========================================================
+    // REMOVE ORIGINAL GOTA CSS
+    // =========================================================
+
+    function removeOriginalCSS() {
+
+        const links =
+            document.querySelectorAll(
+                'link[rel="stylesheet"]'
+            );
+
+        links.forEach((link) => {
+
+            if (
+                link.href &&
+                link.href.includes('/web/style.css')
+            ) {
+
+                log(
+                    'Removing original Gota CSS:',
+                    link.href
+                );
+
+                try {
+                    link.remove();
+                } catch (e) {
+                    error(
+                        'Could not remove original CSS:',
+                        e
+                    );
+                }
+            }
+        });
+    }
 
 
-    // --- Early Execution (@run-at document-start) ---
-    setupObserver(); // Only setup observer early
-    injectTemporaryVersion(); // Inject version script now DOM is ready
+    // =========================================================
+    // INJECT CSS
+    // =========================================================
+
+    function injectCSS(url, id) {
+
+        if (document.getElementById(id)) {
+            return;
+        }
+
+        const link =
+            document.createElement('link');
+
+        link.id = id;
+        link.rel = 'stylesheet';
+        link.href = url;
+
+        link.onload = () => {
+            log('CSS loaded:', url);
+        };
+
+        link.onerror = () => {
+            error('Failed to load CSS:', url);
+        };
+
+        (
+            document.head ||
+            document.documentElement
+        ).appendChild(link);
+    }
 
 
- async function test (url) {
+    // =========================================================
+    // LOAD EXTERNAL HTML
+    // =========================================================
 
-     const response = await fetch(url);
-     const newHTML = await response.text();
-  // Disable drag and drop
-  document.ondragstart = () => false;
-  document.ondrop = () => false;
-    // Replace body content
-// Inject styles
-injectCSS('https://gylowlang.github.io/sammy23/gota.css');
-// injectCSS('http://localhost:5500/gota.css'); // Temporarily disable gota.css injection
+    function loadHTML(url) {
+
+        return new Promise((resolve, reject) => {
+
+            log('Loading HTML:', url);
+
+            GM_xmlhttpRequest({
+
+                method: 'GET',
+
+                url: url,
+
+                nocache: true,
+
+                timeout: 15000,
+
+                onload: function (response) {
+
+                    if (
+                        response.status >= 200 &&
+                        response.status < 300
+                    ) {
+
+                        log(
+                            'HTML loaded successfully:',
+                            response.status
+                        );
+
+                        resolve(response.responseText);
+
+                    } else {
+
+                        reject(
+                            new Error(
+                                'HTTP ' +
+                                response.status +
+                                ' ' +
+                                response.statusText
+                            )
+                        );
+                    }
+                },
+
+                onerror: function (response) {
+
+                    reject(
+                        new Error(
+                            'Network error while loading ' +
+                            url
+                        )
+                    );
+                },
+
+                ontimeout: function () {
+
+                    reject(
+                        new Error(
+                            'Request timed out while loading ' +
+                            url
+                        )
+                    );
+                }
+            });
+        });
+    }
 
 
+    // =========================================================
+    // LOAD REPLACEMENT GAME SCRIPT
+    // =========================================================
 
-   // Wrap the injected HTML in a container div
-   document.getElementsByTagName('body')[0].innerHTML = `<div id="dual-enhances-wrapper">${newHTML}</div>`;
+    function replaceScript(url) {
 
-   // Inject the main game logic script first
-   replaceScript("https://gylowlang.github.io/sammy23/dual-enhances.js")
-   // Then inject the UI script
- }
+        return new Promise((resolve, reject) => {
+
+            if (!url) {
+
+                reject(
+                    new Error(
+                        'Replacement script URL is empty.'
+                    )
+                );
+
+                return;
+            }
+
+            log(
+                'Loading replacement game script:',
+                url
+            );
 
 
- window.addEventListener('DOMContentLoaded', () => {
-     test("https://gylowlang.github.io/sammy23/index.html")
+            const script =
+                document.createElement('script');
 
- });
+            script.src = url;
+
+            script.async = false;
+
+
+            script.onload = () => {
+
+                log(
+                    'Replacement game script loaded.'
+                );
+
+                cleanupTemporaryVersion();
+
+                resolve();
+
+            };
+
+
+            script.onerror = (event) => {
+
+                error(
+                    'Failed to load replacement game script:',
+                    url,
+                    event
+                );
+
+                cleanupTemporaryVersion();
+
+                reject(
+                    new Error(
+                        'Could not load dual-enhances.js'
+                    )
+                );
+            };
+
+
+            (
+                document.head ||
+                document.documentElement
+            ).appendChild(script);
+        });
+    }
+
+
+    // =========================================================
+    // REMOVE TEMPORARY VERSION SCRIPT
+    // =========================================================
+
+    function cleanupTemporaryVersion() {
+
+        const element =
+            document.getElementById(
+                'temp-version-script'
+            );
+
+        if (!element) {
+            return;
+        }
+
+        try {
+
+            element.remove();
+
+            log(
+                'Temporary version script removed.'
+            );
+
+        } catch (e) {
+
+            error(
+                'Could not remove temporary version:',
+                e
+            );
+        }
+    }
+
+
+    // =========================================================
+    // MAIN LOADER
+    // =========================================================
+
+    async function startDualEnhances() {
+
+        log('Starting Dual Enhances...');
+
+        try {
+
+            // -------------------------------------------------
+            // Make sure the page has a body
+            // -------------------------------------------------
+
+            if (!document.body) {
+
+                await new Promise((resolve) => {
+
+                    if (document.readyState === 'loading') {
+
+                        document.addEventListener(
+                            'DOMContentLoaded',
+                            resolve,
+                            { once: true }
+                        );
+
+                    } else {
+
+                        resolve();
+                    }
+                });
+            }
+
+
+            // -------------------------------------------------
+            // Remove original CSS
+            // -------------------------------------------------
+
+            removeOriginalCSS();
+
+
+            // -------------------------------------------------
+            // Load replacement CSS
+            // -------------------------------------------------
+
+            // Game CSS
+            injectCSS(
+                GOTA_CSS_URL,
+                'dual-gota-css'
+            );
+
+            // Dual Enhances UI CSS
+            injectCSS(
+                STYLE_URL,
+                'dual-style-css'
+            );
+
+
+            // -------------------------------------------------
+            // Prevent drag/drop
+            // -------------------------------------------------
+
+            document.ondragstart =
+                () => false;
+
+            document.ondrop =
+                () => false;
+
+
+            // -------------------------------------------------
+            // Download index.html
+            // -------------------------------------------------
+
+            const newHTML =
+                await loadHTML(INDEX_URL);
+
+
+            if (!newHTML) {
+
+                throw new Error(
+                    'index.html returned empty content.'
+                );
+            }
+
+
+            // -------------------------------------------------
+            // Replace page body
+            // -------------------------------------------------
+
+            document.body.innerHTML =
+                '<div id="dual-enhances-wrapper">' +
+                newHTML +
+                '</div>';
+
+
+            log(
+                'Dual Enhances HTML inserted.'
+            );
+
+
+            // -------------------------------------------------
+            // Load main JavaScript
+            // -------------------------------------------------
+
+            await replaceScript(
+                GAME_SCRIPT_URL
+            );
+
+
+            log(
+                'Dual Enhances initialization complete.'
+            );
+
+
+        } catch (e) {
+
+            error(
+                'Dual Enhances failed to initialize:',
+                e
+            );
+
+            console.error(e);
+
+
+            // Show a simple error message
+            // without stopping the entire browser page.
+
+            const errorBox =
+                document.createElement('div');
+
+            errorBox.style.position =
+                'fixed';
+
+            errorBox.style.top =
+                '20px';
+
+            errorBox.style.left =
+                '20px';
+
+            errorBox.style.right =
+                '20px';
+
+            errorBox.style.padding =
+                '15px';
+
+            errorBox.style.zIndex =
+                '2147483647';
+
+            errorBox.style.background =
+                '#222';
+
+            errorBox.style.color =
+                '#fff';
+
+            errorBox.style.fontFamily =
+                'Arial, sans-serif';
+
+            errorBox.textContent =
+                'Dual Enhances failed to load. Check the browser console for details.';
+
+            document.body.appendChild(
+                errorBox
+            );
+        }
+    }
+
+
+    // =========================================================
+    // START
+    // =========================================================
+
+    setupScriptObserver();
+
+    injectTemporaryVersion();
+
+
+    if (
+        document.readyState === 'loading'
+    ) {
+
+        window.addEventListener(
+            'DOMContentLoaded',
+            startDualEnhances,
+            { once: true }
+        );
+
+    } else {
+
+        startDualEnhances();
+    }
 
 })();
-
-
