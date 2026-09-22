@@ -151,7 +151,7 @@
   document.ondrop = () => false;
     // Replace body content
 // Inject styles
-injectCSS('https://gylowlang.github.io/sammy23/style.css');
+injectCSS('https://gylowlang.github.io/sammy23/gota.css');
 // injectCSS('http://localhost:5500/gota.css'); // Temporarily disable gota.css injection
 
 
